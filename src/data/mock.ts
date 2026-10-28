@@ -1,3 +1,4 @@
+import type { PerformanceRun } from "../lib/performance.ts";
 export type Direction = "in" | "out";
 export interface Transaction {
   id: string;
@@ -7,6 +8,7 @@ export interface Transaction {
   direction: Direction;
   status: "completed" | "pending";
   kind?: "deposit" | "withdrawal" | "trade";
+  execution?: { symbol: string; side: "buy" | "sell"; qty: number; priceRON: number; feesRON: number; source: "alpaca" | "static"; quoteAsOf: string | null; rate: number };
 }
 export interface Stock { symbol: string; name: string; price: number }
 export interface Lesson {
@@ -18,6 +20,7 @@ export interface Lesson {
   question: { prompt: string; options: string[]; correct: number; explanation: string };
 }
 export interface DemoState {
+  performance?: PerformanceRun;
   accountId?: string;
   serverNow?: string;
   demoTimelineEnabled?: boolean;

@@ -24,3 +24,12 @@ CREATE TABLE IF NOT EXISTS account_creations (
   response TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(lower(json_extract(state_json, '$.profile.email')));
+
+CREATE TABLE IF NOT EXISTS performance_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id TEXT NOT NULL REFERENCES accounts(id),
+  run_id TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  body_json TEXT NOT NULL CHECK(json_valid(body_json))
+);
+CREATE INDEX IF NOT EXISTS performance_snapshot_run ON performance_snapshots(account_id, run_id, id);

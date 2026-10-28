@@ -6,7 +6,10 @@ import { randomUUID } from 'node:crypto';
 import { openDatabase, readAccount } from './database.mjs';
 import * as logic from '../src/lib/demo-logic.ts';
 import { DEMO_CONFIG } from '../src/config/demo.ts';
-import { getQuotes, priceFor, searchAssets, browseByRange } from './alpaca.mjs';
+import { getQuotes, getQuote, searchAssets, browseByRange } from './alpaca.mjs';
+
+import { startPerformance, financialFingerprint, valuePortfolio } from '../src/lib/performance.ts';
+import { refreshPerformance, saveSnapshot } from './performance.mjs';
 
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
 async function body(req) {
@@ -14,7 +17,7 @@ async function body(req) {
   for await (const chunk of req) { data += chunk; if (data.length > 16384) throw new Error('Request too large'); }
   return data ? JSON.parse(data) : {};
 }
-export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MODE === "true" } = {}) {
+export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MODE === "true", marketData = { getQuotes, getQuote } } = {}) {
   const read = id => readAccount(db, id, { demoMode });
   return createServer(async (req, res) => {
     try {
@@ -62,16 +65,32 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
         const max = maxRaw !== null && Number.isFinite(Number(maxRaw)) ? Number(maxRaw) : Infinity;
         return json(res, 200, await browseByRange(min, max));
       }
-      const match = /^\/api\/accounts\/([^/]+)\/(state|actions)$/.exec(path);
+      const match = /^\/api\/accounts\/([^/]+)\/(state|actions|performance)$/.exec(path);
       if (!match) return json(res, 404, { error: 'Not found' });
       const id = match[1];
       if (!read(id)) return json(res, 404, { error: 'Account not found' });
+      if (req.method === 'GET' && match[2] === 'performance') {
+        if (read(id).tierLevel < 2) return json(res, 403, { error: 'Performance tracking is available from Tier 2.' });
+        return json(res, 200, await refreshPerformance(db, id, read, marketData, demoMode));
+      }
       if (req.method === 'GET' && match[2] === 'state') return json(res, 200, read(id));
       if (req.method !== 'POST' || match[2] !== 'actions') return json(res, 405, { error: 'Method not allowed' });
       const input = await body(req);
       if (!input || typeof input !== "object" || Array.isArray(input)) return json(res, 400, { error: "Expected a JSON object" });
       if (typeof input.requestId !== 'string' || !/^[\w-]{1,100}$/.test(input.requestId)) return json(res, 400, { error: 'A valid requestId is required' });
       const payload = JSON.stringify(input);
+      const preparedState = read(id);
+      let orderQuote = null, openingQuotes = null;
+      // Never hold a SQLite transaction open while awaiting market-data I/O.
+      if (input.action === 'trade') {
+        if (preparedState.tierLevel < 2) return json(res, 403, { error: 'You need a higher tier to invest. Investments unlock at tier 2.' });
+        const symbol = typeof input.symbol === 'string' ? input.symbol.trim().toUpperCase() : '';
+        if (symbol && ['buy', 'sell'].includes(input.side)) orderQuote = await marketData.getQuote(symbol);
+      }
+      if (input.action === 'performance-start') {
+        if (preparedState.tierLevel !== 2) return json(res, 403, { error: 'Performance tracking starts at Tier 2.' });
+        openingQuotes = await marketData.getQuotes(Object.keys(preparedState.holdings));
+      }
       db.exec('BEGIN IMMEDIATE');
       try {
         const previous = db.prepare('SELECT payload, response FROM requests WHERE account_id = ? AND request_id = ?').get(id, input.requestId);
@@ -90,7 +109,20 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
             const symbol = typeof input.symbol === 'string' ? input.symbol.trim().toUpperCase() : '';
             if (!['buy', 'sell'].includes(input.side)) result = { ok: false, error: 'Invalid order side' };
             else if (!symbol) result = { ok: false, error: 'A stock symbol is required.' };
-            else result = logic.trade(state, symbol, input.side, String(input.qty ?? ''), await priceFor(symbol), now);
+            else if (!orderQuote) result = { ok: false, error: 'No price available for this order.' };
+            else if (state.performance?.mode === 'market' && (!orderQuote.live || orderQuote.rate !== state.performance.fxRate)) result = { ok: false, error: 'The active tracker requires market prices at its opening RON conversion rate. Please retry when data is available.' };
+            else {
+              if (state.performance?.mode === 'market') {
+                try { valuePortfolio({ ...state, cash: 0, holdings: { [symbol]: { qty: 1, cost: 0 } } }, [orderQuote], 'market', new Date(), state.performance.fxRate); }
+                catch (error) { result = { ok: false, error: error.message }; }
+              }
+              if (!result) result = logic.trade(state, symbol, input.side, String(input.qty ?? ''), orderQuote.price, now);
+              if (result.ok) {
+                const transaction = result.state.transactions[0];
+                transaction.kind = 'trade';
+                transaction.execution = { symbol, side: input.side, qty: Number(input.qty), priceRON: Math.round(orderQuote.price * 100) / 100, feesRON: 0, source: orderQuote.live ? 'alpaca' : 'static', quoteAsOf: orderQuote.asOf, rate: orderQuote.rate };
+              }
+            }
             break;
           }
           case 'redeem': {
@@ -112,17 +144,26 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
             result = { ok: true, message: 'Demo timeline advanced by one month', state: { ...state, demoClockOffsetMs: advanced.getTime() - Date.now() } };
             break;
           }
+          case 'performance-start': {
+            if (financialFingerprint(state) !== financialFingerprint(preparedState)) { result = { ok: false, error: 'Account changed while opening prices loaded. Please retry.' }; break; }
+            try {
+              const run = startPerformance(state, openingQuotes.quotes, randomUUID(), now, new Date(), demoMode, openingQuotes.rate);
+              result = { ok: true, message: 'Tier 3 assessment started. Follow your saving and investment plan.', state: { ...state, performance: run } };
+              saveSnapshot(db, id, run);
+            } catch (error) { result = { ok: false, error: error.message }; }
+            break;
+          }
           case 'reset': {
             // Reset only this fictional account, never another selected account.
             const starting = { 'demo-1': [750, 1, []], 'demo-2': [3500, 2, ['l-budget', 'l-emergency']], 'demo-3': [8500, 3, ['l-budget', 'l-emergency', 'l-compound', 'l-diversify']] }[id];
             const seed = starting ?? [0, 1, []];
-            result = { ok: true, message: 'Account reset', state: { ...state, demoClockOffsetMs: 0, ...(state.mastery ? { mastery: { enrolledAt: new Date().toISOString(), answers: {}, rewardClaims: {} } } : {}), savingsStartedAt: new Date().toISOString(), cash: seed[0], tierLevel: seed[1], holdings: {}, redeemed: {}, completedLessons: seed[2], transactions: [{ id: `opening-${id}`, date: new Date().toISOString(), description: 'Opening demo deposit', amount: seed[0], direction: 'in', status: 'completed' }] } };
+            result = { ok: true, message: 'Account reset', state: { ...state, performance: undefined, demoClockOffsetMs: 0, ...(state.mastery ? { mastery: { enrolledAt: new Date().toISOString(), answers: {}, rewardClaims: {} } } : {}), savingsStartedAt: new Date().toISOString(), cash: seed[0], tierLevel: seed[1], holdings: {}, redeemed: {}, completedLessons: seed[2], transactions: [{ id: `opening-${id}`, date: new Date().toISOString(), description: 'Opening demo deposit', amount: seed[0], direction: 'in', status: 'completed' }] } };
             break;
           }
           default: result = { ok: false, error: 'Unknown action' };
         }
         if (!result.ok) { db.exec('ROLLBACK'); return json(res, 400, result); }
-        if (input.action !== 'reset') result.state = logic.promoteSavingsTier(result.state, accountNow(result.state, demoMode));
+        if (input.action !== 'reset') result.state = logic.promoteTiers(result.state, accountNow(result.state, demoMode));
         result.state = stampAccount(result.state, demoMode);
         db.prepare('UPDATE accounts SET cash_bani = ?, tier = ?, state_json = ? WHERE id = ?').run(Math.round(result.state.cash * 100), result.state.tierLevel, JSON.stringify(result.state), id);
         db.prepare('INSERT INTO requests VALUES (?, ?, ?, ?)').run(id, input.requestId, payload, JSON.stringify(result));

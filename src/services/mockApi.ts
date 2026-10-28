@@ -1,3 +1,4 @@
+import type { PerformanceReport } from "@/lib/performance";
 // API adapter retained under its original name to preserve the UI integration point.
 import type { DemoState, Lesson } from "@/data/mock";
 import type { Result } from "@/lib/demo-logic";
@@ -45,3 +46,6 @@ export const answerMastery = (s: DemoState, quarterId: string, scenarioId: strin
 export const registerMasteryReward = (s: DemoState, quarterId: string) => action(s, { action: "mastery-reward", quarterId });
 
 export const advanceMonth = (s: DemoState) => action(s, { action: "advance-month" });
+
+export const getPerformance = (id: string, init?: RequestInit) => request<PerformanceReport>(`/accounts/${encodeURIComponent(id)}/performance`, init);
+export const startPerformance = (s: DemoState) => action(s, { action: "performance-start" });

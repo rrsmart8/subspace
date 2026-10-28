@@ -13,12 +13,19 @@ const progressText = (current: number, target: number, unit: string) => {
   return `${value} of ${target} ${unit}`;
 };
 
-export function MilestoneList() {
+export function MilestoneList({ showNextTier = false }: { showNextTier?: boolean }) {
   const { state } = useDemo();
   const now = useCurrentDate();
+  const next = showNextTier ? nextTierRequirements(state, now) : null;
+  const saving = savingsProgress(state, now);
   return (
     <Panel>
       <h2 className="mb-4 text-xl">Milestones</h2>
+      {next && <p className="mb-4 text-sm text-muted-foreground">Next: <span className="text-ink-2">{next.tier.name}</span> · Tier {next.tier.level}</p>}
+      {next?.tier.level === 2 && <div className="mb-4 rounded-md border bg-deep p-3 text-sm text-muted-foreground">
+        This month: <span className="measured text-cool">{ron(saving.currentSaved)} / {ron(saving.monthlyTarget)}</span> saved.
+        <SavingsDates now={now} showNote={false} />
+      </div>}
       {getTier(state).level === 3 && <p className="mb-3 text-sm text-muted-foreground">Ongoing goals for your current tier.</p>}
       <ul className="divide-y">
         {milestones(state, now).map((m) => (

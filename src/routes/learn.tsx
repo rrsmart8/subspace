@@ -8,15 +8,15 @@ import * as api from "@/services/mockApi";
 import { lessonStatus } from "@/lib/demo-logic";
 import { DEMO_CONFIG } from "@/config/demo";
 import { Btn, Chip, Label, Notice, PageHead, Panel, SidePanel } from "@/components/demo/ui";
-import { MilestoneList, NextTier, TierCard } from "@/components/demo/Milestones";
+import { TierCard } from "@/components/demo/Milestones";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/learn")({
   head: () => ({
     meta: [
-      { title: "Learn — Stagewise demo" },
+      { title: "Stagewise — Save. Learn. Invest." },
       { name: "description", content: "Short lessons with quick checks that count toward your next tier." },
-      { property: "og:title", content: "Learn — Stagewise demo" },
+      { property: "og:title", content: "Stagewise — Save. Learn. Invest." },
       { property: "og:description", content: "Short lessons with quick checks that count toward your next tier." },
     ],
   }),
@@ -30,16 +30,12 @@ function Learn() {
     <>
       <PageHead title="Learn" lede="Complete lessons to progress. Lessons never unlock real investing or partner funding." />
       <div className="mb-8 grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <TierCard />
-          <NextTier />
+        <TierCard />
           <Panel>
             <Label>Partner funding eligibility</Label>
             <div className="mt-2 flex items-center gap-2"><Chip tone="cool">Not requested</Chip><Chip>Simulated status</Chip></div>
             <p className="mt-2 text-sm text-muted-foreground">Decided separately by a provider. Not affected by lessons.</p>
           </Panel>
-        </div>
-        <MilestoneList />
       </div>
       <QuarterlyMastery />
       <h2 id="lessons" className="mb-4 scroll-mt-24 text-3xl">Lessons</h2>

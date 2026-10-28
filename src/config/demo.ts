@@ -7,16 +7,17 @@ export const DEMO_CONFIG = {
     fromTier: 2,
     toTier: 3,
     windowDays: 90,
-    // Prototype assessment target, not an expected market return.
-    profitTargetPercent: 0.5,
+    requiredSavingMonths: 3,
+    minPositions: 2,
+    maxPositionPercent: 60,
+    profitTargetPercent: null,
     requiresBalanceAndLessons: true,
-    // Await price integration and a cash-flow-adjusted evaluation engine.
-    enabled: false,
+    enabled: true,
   },
   tiers: [
     { id: "starter", level: 1, name: "Starter", minBalance: 0, minLessons: 0, investPercent: 0, summary: "Build a savings habit. Investing is locked." },
     { id: "builder", level: 2, name: "Builder", minBalance: 0, minLessons: 2, investPercent: 10, summary: "Investing up to 10%" },
-    { id: "investor", level: 3, name: "Investor", minBalance: 0, minLessons: 4, investPercent: 25, summary: "Simulated investing up to 25% of capital." },
+    { id: "investor", level: 3, name: "Investor", minBalance: 0, minLessons: 4, investPercent: 25, summary: "Investing up to 25%" },
   ],
   rewards: [
     { id: "r-coffee", provider: "Bean & Ledger (sample)", title: "Free coffee", description: "One filter coffee at any sample café.", minTierLevel: 1, prefix: "BEAN" },

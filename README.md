@@ -42,7 +42,7 @@ Use the **Demo account** selector in the navigation. There are no passwords for 
 | Andrei Ionescu (`demo-2`) | 2 | 3,500 RON |
 | Maria Dumitrescu (`demo-3`) | 3 | 8,500 RON |
 
-Tier 1 sees “You need a higher tier to invest.” Both the UI and API enforce this restriction. Tier 2 can invest 10% and tier 3 can invest 25% of current capital. Capital means available cash plus holdings at purchase cost; invested cost consumes the allowance. Tier 1 is 0%. Tier 1 now promotes automatically to Tier 2 when the income-based saving streak, balance and lessons are all satisfied. Tier 3 evaluation is planned but remains inactive pending market-price integration.
+Tier 1 sees “You need a higher tier to invest.” Both the UI and API enforce this restriction. Tier 2 can invest 10% and tier 3 can invest 25% of current capital. Capital means available cash plus holdings at purchase cost; invested cost consumes the allowance. Tier 1 is 0%. Tier 1 now promotes automatically to Tier 2 when the income-based saving streak, balance and lessons are all satisfied. Tier 2 promotes automatically to Tier 3 after the saving, reserve, learning and 90-day discipline requirements below. Profit is not a promotion requirement.
 
 Balances, transactions, holdings, coupon codes and learning progress persist in SQLite. The browser remembers only the selected account. **Reset demo** restores the selected account's initial data; it does not reset the other accounts.
 
@@ -62,7 +62,17 @@ Multiple confirmed deposits add up during a month; withdrawals subtract from tha
 
 Existing seed accounts keep their assigned tiers. Their fictional monthly incomes are 5,000 / 7,000 / 10,000 RON. Income enrollment metadata is added without overwriting existing balances or history, and historic deposits do not backfill a streak. No income editing or verification is implemented yet; future income changes need an effective-month policy rather than rewriting past targets.
 
-The Tier 2 → Tier 3 configuration now records **90 days** and a provisional **+0.5%** target, supplementing its balance and lesson requirements. Its evaluation engine remains disabled pending the teammate's price integration.
+Tier 2 → Tier 3 has an automatic **readiness assessment**, separate from portfolio returns. Start it from Investment after making your first investment. All five milestones must pass:
+
+- Follow the investment plan for 90 consecutive elapsed days: at least two held stocks; no position over 60% of total invested **cost**; total invested cost within the Tier 2 allowance (10% of cash + invested cost).
+- Save 10% of declared monthly income in each of the latest three completed consecutive Bucharest calendar months after assessment enrollment. Exclude the partial enrollment month and all Tier 1 saving history. A missed month breaks only this saving streak; later full months can qualify.
+- Retain three monthly saving contributions as cash reserve.
+- Complete four distinct valid lessons (including the two foundation lessons already completed).
+- Meet the investment plan at promotion. A sale/concentration or allowance breach resets the discipline timer, not money, lessons, tracking snapshots or savings history. It restarts when the plan is met again. No mandatory trade frequency or profitable-trade count.
+
+Policy values live in `src/config/demo.ts`. Each assessment freezes its income-based target, reserve and allocation rules in SQLite-backed account state; existing trackers enroll on their first server read without backdating readiness evidence. Cost basis means market price movements alone cannot breach these prototype limits. Two stocks are only a simple prototype concentration check, not proof of a fully diversified portfolio. The server evaluates and persists readiness on account reads and successful actions; client tier/date/eligibility claims are ignored.
+
+The demo month button can demonstrate this habit-based qualification; it does not establish real market performance. Three full savings months may take longer than 90 days because the starting partial month is excluded. After promotion the allowance becomes 25%, and the existing Tier 3 quarterly mastery challenge is initialized. Positive returns never credit a bonus automatically; no new profit-reward funding/payout rule is implemented.
 
 ## Investment limits
 
@@ -128,7 +138,7 @@ The account selector is a demonstration tool, not production authentication. The
 The Milestones and Next tier panels use the same shared rules. There is no fixed 1,000 or 5,000 RON gate: savings reserve = 3 × (10% of declared monthly income). Tier percentages for investing are unchanged.
 
 - Tier 1 (3): three consecutive qualifying saving months, the income-based retained reserve, and two lessons. These are all required for server-side promotion to Tier 2.
-- Tier 2 (5): retain the income-based reserve, complete four lessons, place a first trade, complete the planned 90-day assessment, and meet its +0.5% net-profit target. The last two show Pending without invented progress; the assessment engine remains inactive.
+- Tier 2 (5): retain the income-based reserve, complete four lessons, place a first trade, complete the 90-day tracking period, and complete a future Tier 3 eligibility review. The review stays Pending; returns alone do not grant promotion.
 - Tier 3 (3 ongoing goals): meet this month's 10% saving target, retain the reserve, and complete the quarterly mastery challenge. These are ongoing goals, not requirements for a nonexistent Tier 4.
 
 The separate three-deposit milestone is removed. Progress counts read “1 of 3 months,” avoiding duplicated units and incorrect singular forms.
@@ -155,4 +165,20 @@ Judge walkthrough: create an account with 5,000 RON income, complete two foundat
 
 `dev:all` sets `DEMO_MODE=true` unless you explicitly set it to `false`. A directly started backend defaults to controls disabled: use `DEMO_MODE=true npm run backend` for separate-terminal presentation runs on macOS/Linux. Without that server flag, the button is hidden and the advance endpoint returns 403. Never enable it against production or real financial data. Use a separate `SQLITE_PATH` for presentations if you want to isolate existing local data.
 
-The timeline changes calendar time, not market prices: it does not create future quotes or activate the pending Tier 2 → Tier 3 investment assessment.
+The timeline changes calendar time, not market prices: it does not create future quotes or automatically pass the Tier 2 → Tier 3 eligibility review.
+
+## 90-day performance tracking
+
+On Investment, a Tier 2 account with at least one holding can start a 90-day tracker. The backend records the opening cash, market-valued holdings, transaction IDs, fixed configured USD/RON rate and timestamped quotes. A tracking period is not a pass/fail assessment and never promotes the account.
+
+- Account portfolio value includes **all account cash plus all held stocks**, including symbols outside the original catalogue. The percentage therefore measures the account portfolio, including idle cash; it is not a return on just the Tier 2 allocation.
+- Gain/loss = latest account value − opening account value − deposits + withdrawals since the opening snapshot. Earlier price gains are excluded by marking opening holdings to market.
+- The displayed return is a timestamp-weighted **Modified Dietz estimate**, adjusting the denominator for when external cash flows entered/left. It is labelled an estimate; it is not an exact time-weighted return. If its capital denominator is nonpositive, the return is unavailable. Method reference: [GIPS handbook](https://www.gipsstandards.org/standards/gips-standards-for-firms/gips-standards-handbook-for-firms/).
+- Orders record symbol, quantity, side, actual RON price, quote timestamp, source, conversion rate and fees. The local paper-order model currently charges **zero fees**. Recorded fees are reflected through cash and not subtracted twice. Dividends, splits and other corporate actions are not reconciled yet, so this is price-based prototype tracking, not a production brokerage statement. Unknown new transaction types pause valuation rather than becoming apparent profit.
+- Market-mode tracking requires timestamped Alpaca prices for every holding. Missing/fallback quotes, future timestamps, prices older than four calendar days or a changed configured FX rate pause refreshing and preserve the last valid snapshot. Four days accommodates many weekends/holidays but is a prototype freshness policy, not proof a market is open. Restore the opening FX rate before continuing an existing market tracker.
+- Demo-mode trackers are explicitly labelled. They may use static fallback prices and the presentation clock, but advancing a month never generates future market prices.
+- Snapshots are captured on opening and during Investment-page refreshes when values change or an hour has passed. The page refreshes every minute and after account actions; it also has a manual refresh. There is **no background scheduler** recording prices while the app is unattended. SQLite keeps snapshot history; the UI/API return the latest 20 for the current run.
+- Once the window has ended, the last in-window snapshot is preserved. We do not apply today's quote to a past deadline. An exact closing historical valuation remains a future integration task; the panel clearly says closing data is pending. Returns never decide Tier 3 promotion. The separate readiness assessment uses the authoritative account clock (including presentation time only when server demo mode is enabled).
+- `GET /api/accounts/:id/performance` refreshes/returns the report; account action `performance-start` opens a run. Existing idempotency keys prevent duplicate start snapshots. Reset demo clears the current run but preserves old SQLite snapshot records.
+
+Alpaca requests run **outside** SQLite write transactions. The API re-reads account state before applying an order or recording a valuation; it rejects changed opening portfolios instead of overwriting concurrent cash movements.

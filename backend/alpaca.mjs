@@ -53,17 +53,19 @@ const priceCache = new Map(); // symbol -> { price, at }
 
 function staticQuote(symbol) {
   const entry = STATIC.get(symbol);
-  return entry ? { symbol, price: entry.price, live: false } : null;
+  return entry ? { symbol, price: entry.price, live: false, source: "static", currency: "RON", rate: 1, asOf: null, fetchedAt: new Date().toISOString() } : null;
 }
 
 async function liveQuote(client, symbol) {
   const cached = priceCache.get(symbol);
-  if (cached && Date.now() - cached.at < CACHE_MS) return { symbol, price: cached.price, live: true };
-  const usd = await client.marketData.getLatestPrice(symbol, { feed: FEED });
-  if (typeof usd !== 'number' || !Number.isFinite(usd) || usd <= 0) return null;
-  const price = round2(usd * USD_TO_RON);
-  priceCache.set(symbol, { price, at: Date.now() });
-  return { symbol, price, live: true };
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.quote;
+  const response = await client.marketData.stocks.stockLatestTradeSingle({ symbol, feed: FEED }, { signal: AbortSignal.timeout(8000) });
+  const usd = Number(response.trade?.p);
+  const asOf = new Date(response.trade?.t);
+  if (!Number.isFinite(usd) || usd <= 0 || !Number.isFinite(asOf.getTime())) return null;
+  const quote = { symbol, price: round2(usd * USD_TO_RON), priceUSD: usd, live: true, source: "alpaca", currency: "RON", rate: USD_TO_RON, asOf: asOf.toISOString(), fetchedAt: new Date().toISOString() };
+  priceCache.set(symbol, { quote, at: Date.now() });
+  return quote;
 }
 
 // Returns a normalised quote { symbol, price, live } for one symbol. Live
