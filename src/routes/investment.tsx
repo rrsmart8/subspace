@@ -9,6 +9,7 @@ import { STOCKS } from "@/data/mock";
 import { getTier, investmentBudget } from "@/lib/demo-logic";
 import { useAssetQuote, useQuotes } from "@/hooks/use-quotes";
 import { Slider } from "@/components/ui/slider";
+import { AdvisorChat } from "@/components/demo/AdvisorChat";
 import {
   Btn,
   Chip,
@@ -326,6 +327,7 @@ export function Investment() {
       {sel && price > 0 && (
         <OrderPanel symbol={sel.symbol} price={price} side={side} onClose={() => setSide(null)} />
       )}
+      <AdvisorChat />
     </>
   );
 }

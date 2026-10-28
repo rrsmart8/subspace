@@ -34,6 +34,12 @@ dist-ssr
 # Local SQLite data
 backend/data/
 
+# Python (market-data MCP server)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Secrets and SQLite files outside the default data directory
 .env
 .env.*

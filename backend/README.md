@@ -79,9 +79,46 @@ Behaviour and configuration:
 
 ```sh
 npm run test:backend
+npm run test:chatbot
 npm test
 npx tsc --noEmit
 npm run build
+```
+
+## Tier 3 investment assistant (Featherless + MCP)
+
+Tier 3 members see an **Investment assistant** chat on the Investment page. It answers questions about investment strategy and US stock market data. Tiers 1 and 2 don't see it, and the API rejects their requests with HTTP 403, based on the tier stored in SQLite.
+
+How it fits together:
+
+```
+browser (history in localStorage)
+  └─ POST /api/accounts/:id/chat  { messages: [{ role: "user" | "assistant", content }] }
+       backend/server.mjs        tier check (SQLite), input validation, 12 requests/min per account
+       backend/chatbot/chat.mjs  system prompt + account context, tool-calling loop (max 5 rounds)
+         ├─ Featherless SDK      non-streaming chat completions with `tools`
+         └─ mcp-client.mjs       MCP client over stdio → `uv run python -m market_mcp`
+              backend/chatbot/mcp_server/   FastMCP server, read-only Alpaca market data
+```
+
+- **System prompt**: `backend/chatbot/system_prompt.md`. The server appends the account context (tier, cash, remaining allowance, holdings, today's date). The browser sends only user and assistant text; any system or tool message it sends is rejected.
+- **Tools** (all read-only, all amounts in RON at `ALPACA_USD_TO_RON`): `search_companies`, `get_stock_snapshot`, `get_price_history` (adjusted bars since 2016 and a summary), `get_company_news`, `get_corporate_actions`. The MCP server only receives the Alpaca variables, not the Featherless key.
+- **Model**: `FEATHERLESS_MODEL`, default `moonshotai/Kimi-K2-Instruct`. Featherless supports native tool calling for Kimi K2 and the Qwen 3 family. Most models have a 32k-token context, so tool outputs are kept compact (at most 60 sampled bars, short news summaries).
+- **Fundamentals**: Alpaca doesn't provide fundamentals (P/E, market cap, earnings). The prompt tells the model to say so instead of guessing.
+
+Setup:
+
+1. Install [uv](https://docs.astral.sh/uv/). `npm run setup` then runs `uv sync` for `backend/chatbot/mcp_server`, or you can run it yourself.
+2. Set `FEATHERLESS_API_KEY` in the root `.env` (see `.env.example`). Alpaca keys are needed for real data; without them, every tool reports that market data is unavailable.
+3. Restart the backend. The MCP server starts on the first chat message and stops with the API.
+
+Without `FEATHERLESS_API_KEY`, the chat endpoint returns 503 and the rest of the app is unaffected.
+
+You can debug the MCP server on its own, from `backend/chatbot/mcp_server`:
+
+```sh
+uv run pytest -q   # tests use a fake source, no network
+npx @modelcontextprotocol/inspector uv run --env-file ../../../.env python -m market_mcp   # try tools interactively
 ```
 
 ## Tier 2 performance tracking

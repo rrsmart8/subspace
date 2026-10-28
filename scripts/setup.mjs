@@ -12,4 +12,7 @@ for (const [command, args] of [['bun', ['install', '--frozen-lockfile']], [proce
   if (result.error) { console.error(`${command}: ${result.error.message}. Install Bun 1.4.3 and retry.`); process.exit(1); }
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
+// Optional: the Tier 3 assistant's market-data MCP server (Python, managed by uv).
+const uv = spawnSync(process.env.CHATBOT_UV_BIN || 'uv', ['sync', '--frozen', '--directory', 'backend/chatbot/mcp_server'], { cwd: root, stdio: 'inherit', shell: false });
+if (uv.error || uv.status !== 0) console.warn('\nSkipped the investment assistant setup: install uv (https://docs.astral.sh/uv/) and rerun to enable it. The rest of the app works without it.');
 console.log('\nSetup complete. Run: npm run dev:all');

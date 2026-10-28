@@ -49,3 +49,12 @@ export const advanceMonth = (s: DemoState) => action(s, { action: "advance-month
 
 export const getPerformance = (id: string, init?: RequestInit) => request<PerformanceReport>(`/accounts/${encodeURIComponent(id)}/performance`, init);
 export const startPerformance = (s: DemoState) => action(s, { action: "performance-start" });
+
+export interface ChatMessage { role: "user" | "assistant"; content: string }
+export interface ChatReply { reply: string; toolsUsed: string[] }
+// Tier 3 investment assistant. History lives in the browser and is sent with each turn;
+// the server re-checks the stored tier and rebuilds all system/tool context itself.
+export const sendChat = (accountId: string, messages: ChatMessage[]) => request<ChatReply>(`/accounts/${encodeURIComponent(accountId)}/chat`, {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ messages }),
+});
