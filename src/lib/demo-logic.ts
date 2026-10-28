@@ -51,28 +51,31 @@ export function holdingsValue(s: DemoState) {
   return round(Object.entries(s.holdings).reduce((a, [sym, h]) => a + h.qty * (STOCKS.find((x) => x.symbol === sym)?.price ?? 0), 0));
 }
 
-export function trade(s: DemoState, symbol: string, side: "buy" | "sell", rawQty: string): Result {
+// `priceOverride` (RON) lets the server settle a trade at a live Alpaca price. For the static demo catalogue it defaults to the listed price when omitted. A symbol outside the catalogue is tradable only when a valid live price is supplied, so this stays a pure, deterministic rule.
+export function trade(s: DemoState, symbol: string, side: "buy" | "sell", rawQty: string, priceOverride?: number): Result {
   const stock = STOCKS.find((x) => x.symbol === symbol);
-  if (!stock) return { ok: false, error: "Unknown stock." };
+  const override = typeof priceOverride === "number" && Number.isFinite(priceOverride) && priceOverride > 0 ? round(priceOverride) : undefined;
+  if (!stock && override === undefined) return { ok: false, error: "Unknown stock." };
   if (!/^\d+$/.test(rawQty.trim()) || Number(rawQty) <= 0) return { ok: false, error: "Enter a whole number of shares, at least 1." };
   const qty = Number(rawQty);
   if (!Number.isSafeInteger(qty) || qty > 1000000) return { ok: false, error: "Invalid share quantity." };
+  const price = override ?? stock!.price;
   const tier = getTier(s);
   if (tier.level < 2) return { ok: false, error: "You need a higher tier to invest. Investments unlock at tier 2." };
-  const total = round(qty * stock.price);
+  const total = round(qty * price);
   const h = s.holdings[symbol] ?? { qty: 0, cost: 0 };
   if (side === "buy") {
     if (total > s.cash) return { ok: false, error: `Total RON ${total.toFixed(2)} exceeds cash of RON ${s.cash.toFixed(2)}.` };
     const room = round(tier.investAllowance - investedCost(s));
     if (total > room) return { ok: false, error: `Exceeds your ${tier.name} allowance. Remaining: RON ${Math.max(0, room).toFixed(2)}.` };
-    return { ok: true, message: `Bought ${qty} ${symbol}`, state: { ...s, cash: round(s.cash - total), holdings: { ...s.holdings, [symbol]: { qty: h.qty + qty, cost: round(h.cost + total) } }, transactions: [txn({ description: `Buy ${qty} ${symbol} @ RON ${stock.price.toFixed(2)}`, amount: total, direction: "out" }), ...s.transactions] } };
+    return { ok: true, message: `Bought ${qty} ${symbol}`, state: { ...s, cash: round(s.cash - total), holdings: { ...s.holdings, [symbol]: { qty: h.qty + qty, cost: round(h.cost + total) } }, transactions: [txn({ description: `Buy ${qty} ${symbol} @ RON ${price.toFixed(2)}`, amount: total, direction: "out" }), ...s.transactions] } };
   }
   if (qty > h.qty) return { ok: false, error: `You own ${h.qty} ${symbol}.` };
   const holdings = { ...s.holdings };
   const left = h.qty - qty;
   if (left === 0) delete holdings[symbol];
   else holdings[symbol] = { qty: left, cost: round((h.cost * left) / h.qty) };
-  return { ok: true, message: `Sold ${qty} ${symbol}`, state: { ...s, cash: round(s.cash + total), holdings, transactions: [txn({ description: `Sell ${qty} ${symbol} @ RON ${stock.price.toFixed(2)}`, amount: total, direction: "in" }), ...s.transactions] } };
+  return { ok: true, message: `Sold ${qty} ${symbol}`, state: { ...s, cash: round(s.cash + total), holdings, transactions: [txn({ description: `Sell ${qty} ${symbol} @ RON ${price.toFixed(2)}`, amount: total, direction: "in" }), ...s.transactions] } };
 }
 
 export function rewardLockReason(s: DemoState, rewardId: string): string | null {
