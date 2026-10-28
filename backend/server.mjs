@@ -7,16 +7,23 @@ import { openDatabase, readAccount } from './database.mjs';
 import * as logic from '../src/lib/demo-logic.ts';
 import { DEMO_CONFIG } from '../src/config/demo.ts';
 import { getQuotes, priceFor, searchAssets, browseByRange } from './alpaca.mjs';
+import { ChatError, createFeatherlessChat, validateMessages } from './chatbot/chat.mjs';
 
+const CHAT_PER_MINUTE = 12;
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
-async function body(req) {
+async function body(req, limit = 16384) {
   let data = '';
-  for await (const chunk of req) { data += chunk; if (data.length > 16384) throw new Error('Request too large'); }
+  for await (const chunk of req) { data += chunk; if (data.length > limit) throw new Error('Request too large'); }
   return data ? JSON.parse(data) : {};
 }
-export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MODE === "true" } = {}) {
+// `chat` may be injected (tests); undefined means "build from env on first use", null means disabled.
+export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MODE === "true", chat } = {}) {
   const read = id => readAccount(db, id, { demoMode });
-  return createServer(async (req, res) => {
+  let chatService = chat === undefined ? null : Promise.resolve(chat);
+  const getChat = () => (chatService ??= createFeatherlessChat().catch(error => { console.error('Chat setup failed:', error.message); chatService = null; return null; }));
+  const chatInFlight = new Set();
+  const chatHistory = new Map(); // accountId -> recent request timestamps
+  const server = createServer(async (req, res) => {
     try {
       const path = new URL(req.url, 'http://localhost').pathname;
       if (req.method === 'POST' && path === '/api/accounts') {
@@ -62,11 +69,31 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
         const max = maxRaw !== null && Number.isFinite(Number(maxRaw)) ? Number(maxRaw) : Infinity;
         return json(res, 200, await browseByRange(min, max));
       }
-      const match = /^\/api\/accounts\/([^/]+)\/(state|actions)$/.exec(path);
+      const match = /^\/api\/accounts\/([^/]+)\/(state|actions|chat)$/.exec(path);
       if (!match) return json(res, 404, { error: 'Not found' });
       const id = match[1];
       if (!read(id)) return json(res, 404, { error: 'Account not found' });
       if (req.method === 'GET' && match[2] === 'state') return json(res, 200, read(id));
+      if (req.method === 'POST' && match[2] === 'chat') {
+        // Tier comes from SQLite only; nothing in the request can unlock the assistant.
+        const account = read(id);
+        if (account.tierLevel !== 3) return json(res, 403, { error: 'The investment assistant is available to Tier 3 members only.' });
+        const input = await body(req, 65536);
+        const checked = validateMessages(input?.messages);
+        if (!checked.ok) return json(res, 400, { error: checked.error });
+        const recent = (chatHistory.get(id) ?? []).filter(t => Date.now() - t < 60_000);
+        if (chatInFlight.has(id) || recent.length >= CHAT_PER_MINUTE) return json(res, 429, { error: 'Please wait a moment before sending another message.' });
+        const service = await getChat();
+        if (!service) return json(res, 503, { error: 'The investment assistant is not configured on this server.' });
+        chatHistory.set(id, [...recent, Date.now()]);
+        chatInFlight.add(id);
+        try {
+          return json(res, 200, await service.reply({ state: account, messages: checked.messages }));
+        } catch (error) {
+          if (error instanceof ChatError) return json(res, error.status, { error: error.message });
+          throw error;
+        } finally { chatInFlight.delete(id); }
+      }
       if (req.method !== 'POST' || match[2] !== 'actions') return json(res, 405, { error: 'Method not allowed' });
       const input = await body(req);
       if (!input || typeof input !== "object" || Array.isArray(input)) return json(res, 400, { error: "Expected a JSON object" });
@@ -135,6 +162,9 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
       json(res, 500, { error: 'Unable to complete the request' });
     }
   });
+  // Stop the MCP child process together with the API.
+  server.on('close', () => { Promise.resolve(chatService).then(s => s?.close?.()).catch(() => {}); });
+  return server;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = createApi();
