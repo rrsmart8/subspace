@@ -1,0 +1,113 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Console theme (graphite). Amber = the person / primary action. Cool = system readings. */
+
+@theme inline {
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --font-sans: "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-ink-2: var(--ink-2);
+  --color-rule-2: var(--rule-2);
+  --color-deep: var(--deep);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-cool: var(--cool);
+  --color-cool-soft: var(--cool-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+}
+
+:root {
+  --radius: 10px;
+  --background: oklch(17% 0.008 250);
+  --foreground: oklch(95% 0.005 250);
+  --card: oklch(21% 0.009 250);
+  --card-foreground: oklch(95% 0.005 250);
+  --popover: oklch(21% 0.009 250);
+  --popover-foreground: oklch(95% 0.005 250);
+  --deep: oklch(13.5% 0.007 250);
+  --ink-2: oklch(83% 0.008 250);
+  --primary: oklch(82% 0.15 80);
+  --primary-foreground: oklch(18% 0.04 75);
+  --secondary: oklch(21% 0.009 250);
+  --secondary-foreground: oklch(95% 0.005 250);
+  --muted: oklch(13.5% 0.007 250);
+  --muted-foreground: oklch(71% 0.01 250);
+  --accent: oklch(25% 0.01 250);
+  --accent-foreground: oklch(95% 0.005 250);
+  --destructive: oklch(70% 0.17 25);
+  --destructive-foreground: oklch(18% 0.04 25);
+  --border: oklch(31% 0.01 250);
+  --rule-2: oklch(42% 0.012 250);
+  --input: oklch(42% 0.012 250);
+  --ring: oklch(82% 0.15 80);
+  --amber: oklch(82% 0.15 80);
+  --amber-soft: oklch(29% 0.05 80);
+  --cool: oklch(77% 0.12 245);
+  --cool-soft: oklch(29% 0.05 245);
+  --ok: oklch(76% 0.15 150);
+  --ok-soft: oklch(24.5% 0.03 150);
+  --bad: oklch(70% 0.17 25);
+  --bad-soft: oklch(24.5% 0.035 25);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+  }
+  h1, h2, h3 { font-weight: 500; letter-spacing: -0.03em; line-height: 1.05; }
+  ::selection { background: color-mix(in oklab, var(--amber) 25%, transparent); }
+}
+
+@utility measured {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+@utility reading {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+@utility panels {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  & > * { background: var(--card); }
+}
