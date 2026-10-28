@@ -13,6 +13,11 @@ vi.mock("@/services/mockApi", () => ({
   searchAssets: vi
     .fn()
     .mockResolvedValue({ results: [{ symbol: "F", name: "Ford Motor Co." }], live: false }),
+  browseAssets: vi.fn().mockResolvedValue({
+    companies: [{ symbol: "F", name: "Ford Motor Co.", price: 12.18 }],
+    bounds: { min: 12, max: 2000 },
+    live: false,
+  }),
   trade: vi.fn(),
 }));
 afterEach(cleanup);

@@ -7,6 +7,8 @@ export interface Quote { symbol: string; price: number; live: boolean }
 export interface QuotesResult { quotes: Quote[]; live: boolean; feed: string; rate: number }
 export interface Asset { symbol: string; name: string }
 export interface SearchResult { results: Asset[]; live: boolean }
+export interface BrowseCompany { symbol: string; name: string; price: number }
+export interface BrowseResult { companies: BrowseCompany[]; bounds: { min: number; max: number }; live: boolean }
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, init);
   const data = await response.json();
@@ -17,6 +19,7 @@ export const listAccounts = () => request<DemoAccount[]>("/accounts");
 export const listLessons = () => request<Lesson[]>("/lessons");
 export const getQuotes = (symbols?: string[]) => request<QuotesResult>(`/market/quotes${symbols?.length ? `?symbols=${encodeURIComponent(symbols.join(","))}` : ""}`);
 export const searchAssets = (q: string, init?: RequestInit) => request<SearchResult>(`/market/search?q=${encodeURIComponent(q)}`, init);
+export const browseAssets = (min: number, max: number, init?: RequestInit) => request<BrowseResult>(`/market/browse?min=${encodeURIComponent(String(min))}&max=${encodeURIComponent(String(max))}`, init);
 export const loadState = (id: string) => request<DemoState>(`/accounts/${encodeURIComponent(id)}/state`);
 async function action(s: DemoState, input: Record<string, unknown>): Promise<Result> {
   try {

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { openDatabase, readAccount } from './database.mjs';
 import * as logic from '../src/lib/demo-logic.ts';
 import { DEMO_CONFIG } from '../src/config/demo.ts';
-import { getQuotes, priceFor, searchAssets } from './alpaca.mjs';
+import { getQuotes, priceFor, searchAssets, browseByRange } from './alpaca.mjs';
 
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
 async function body(req) {
@@ -29,6 +29,14 @@ export function createApi(db = openDatabase()) {
       if (req.method === 'GET' && path === '/api/market/search') {
         const q = new URL(req.url, 'http://localhost').searchParams.get('q') ?? '';
         return json(res, 200, await searchAssets(q));
+      }
+      if (req.method === 'GET' && path === '/api/market/browse') {
+        const params = new URL(req.url, 'http://localhost').searchParams;
+        const minRaw = params.get('min');
+        const maxRaw = params.get('max');
+        const min = minRaw !== null && Number.isFinite(Number(minRaw)) ? Number(minRaw) : 0;
+        const max = maxRaw !== null && Number.isFinite(Number(maxRaw)) ? Number(maxRaw) : Infinity;
+        return json(res, 200, await browseByRange(min, max));
       }
       const match = /^\/api\/accounts\/([^/]+)\/(state|actions)$/.exec(path);
       if (!match) return json(res, 404, { error: 'Not found' });

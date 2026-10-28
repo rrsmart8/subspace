@@ -10,6 +10,7 @@
 // converted with a configurable rate (ALPACA_USD_TO_RON). This keeps the quote
 // endpoint and server-side trade pricing on the same scale.
 import { STOCKS } from '../src/data/mock.ts';
+import { BROWSE_POOL } from './browse-pool.mjs';
 
 const KEY_ID = process.env.APCA_API_KEY_ID || process.env.ALPACA_API_KEY_ID;
 const SECRET = process.env.APCA_API_SECRET_KEY || process.env.ALPACA_SECRET_KEY;
@@ -21,6 +22,8 @@ const FEED = process.env.ALPACA_DATA_FEED || 'iex';
 const CACHE_MS = Number(process.env.ALPACA_CACHE_MS) > 0 ? Number(process.env.ALPACA_CACHE_MS) : 10_000;
 const ASSETS_TTL_MS = Number(process.env.ALPACA_ASSETS_TTL_MS) > 0 ? Number(process.env.ALPACA_ASSETS_TTL_MS) : 6 * 60 * 60 * 1000;
 const SEARCH_LIMIT = 25;
+const BROWSE_COUNT = 16; // companies shown in the default browse panel
+const BULK_BATCH = 100; // symbols per bulk latest-trades request
 
 export const alpacaEnabled = Boolean(KEY_ID && SECRET) && !DISABLED;
 
@@ -151,4 +154,72 @@ export async function searchAssets(query) {
     }
   }
   return { results: searchStatic(q), live: false };
+}
+
+// ----- Browse by price range ------------------------------------------------
+
+// Prices a list of symbols in bulk via one or more `stockLatestTrades` calls,
+// converting USD -> RON. Returns a Map symbol -> price (RON). Falls back to the
+// static demo price for any symbol the live call does not cover.
+async function bulkPrices(client, symbols) {
+  const prices = new Map();
+  for (let i = 0; i < symbols.length; i += BULK_BATCH) {
+    const batch = symbols.slice(i, i + BULK_BATCH);
+    try {
+      const resp = await client.marketData.stocks.stockLatestTrades({ symbols: batch.join(','), feed: FEED });
+      for (const [sym, trade] of Object.entries(resp?.trades ?? {})) {
+        const usd = trade?.p;
+        if (typeof usd === 'number' && Number.isFinite(usd) && usd > 0) prices.set(sym, round2(usd * USD_TO_RON));
+      }
+    } catch (error) {
+      console.error('Alpaca bulk price request failed for a batch; skipping.', error.message);
+    }
+  }
+  return prices;
+}
+
+// Picks up to `count` items spread evenly across the (price-sorted) list, so the
+// selection samples the whole range instead of clustering at one end.
+function spreadEvenly(sorted, count) {
+  if (sorted.length <= count) return sorted;
+  const picked = [];
+  const step = (sorted.length - 1) / (count - 1);
+  for (let i = 0; i < count; i++) picked.push(sorted[Math.round(i * step)]);
+  return picked;
+}
+
+function staticBrowse(min, max) {
+  const priced = [...STATIC.values()].map((a) => ({ symbol: a.symbol, name: a.name, price: a.price }));
+  const prices = priced.map((p) => p.price);
+  const bounds = { min: Math.min(...prices), max: Math.max(...prices) };
+  const inRange = priced
+    .filter((p) => p.price >= min && p.price <= max)
+    .sort((a, b) => a.price - b.price);
+  return { companies: spreadEvenly(inRange, BROWSE_COUNT), bounds, live: false };
+}
+
+// Returns up to 16 companies from the curated pool whose live price is within
+// [min, max], sampled evenly across the range, plus the pool's overall price
+// bounds so the UI slider can set its extents. Falls back to the static demo
+// catalogue when Alpaca is unavailable.
+export async function browseByRange(min = 0, max = Infinity) {
+  const lo = Number.isFinite(min) ? min : 0;
+  const hi = Number.isFinite(max) ? max : Infinity;
+  const client = await getClient();
+  if (client) {
+    try {
+      const names = new Map(BROWSE_POOL.map((p) => [p.symbol, p.name]));
+      const prices = await bulkPrices(client, [...names.keys()]);
+      const priced = [...prices.entries()].map(([symbol, price]) => ({ symbol, name: names.get(symbol) ?? symbol, price }));
+      if (priced.length) {
+        const all = priced.map((p) => p.price);
+        const bounds = { min: Math.floor(Math.min(...all)), max: Math.ceil(Math.max(...all)) };
+        const inRange = priced.filter((p) => p.price >= lo && p.price <= hi).sort((a, b) => a.price - b.price);
+        return { companies: spreadEvenly(inRange, BROWSE_COUNT), bounds, live: true };
+      }
+    } catch (error) {
+      console.error('Alpaca browse failed; using static catalogue.', error.message);
+    }
+  }
+  return staticBrowse(lo, hi);
 }

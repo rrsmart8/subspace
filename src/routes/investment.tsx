@@ -7,6 +7,7 @@ import * as api from "@/services/mockApi";
 import { STOCKS } from "@/data/mock";
 import { getTier, investedCost } from "@/lib/demo-logic";
 import { useAssetQuote, useQuotes } from "@/hooks/use-quotes";
+import { Slider } from "@/components/ui/slider";
 import {
   Btn,
   Chip,
@@ -49,15 +50,21 @@ export function Investment() {
   );
   const [searching, setSearching] = useState(false);
   const [searchLive, setSearchLive] = useState(false);
+  // Browse-by-price-range state (shown when the search box is empty).
+  const [browsePrices, setBrowsePrices] = useState<Record<string, number>>({});
+  const [bounds, setBounds] = useState<{ min: number; max: number } | null>(null);
+  const [range, setRange] = useState<[number, number] | null>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const [browseLive, setBrowseLive] = useState(false);
   const tier = getTier(state);
   const canTrade = tier.investAllowance > 0;
+  const isSearch = q.trim().length > 0;
 
   // Debounced company/symbol search against the backend (Alpaca asset universe,
-  // static demo catalogue as fallback). An empty query shows the catalogue.
+  // static demo catalogue as fallback). An empty query defers to browse mode.
   useEffect(() => {
     const term = q.trim();
     if (!term) {
-      setResults(STOCKS.map((s) => ({ symbol: s.symbol, name: s.name })));
       setSearching(false);
       setSearchLive(false);
       return;
@@ -81,11 +88,58 @@ export function Investment() {
     };
   }, [q]);
 
+  // Initial browse load: fetch the pool's price bounds and seed the slider to
+  // the full range. Runs once on mount (and only matters in browse mode).
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setBrowsing(true);
+      try {
+        const r = await api.browseAssets(0, Number.MAX_SAFE_INTEGER, { signal: controller.signal });
+        setBounds(r.bounds);
+        setRange([r.bounds.min, r.bounds.max]);
+        setBrowseLive(r.live);
+        setResults(r.companies.map((c) => ({ symbol: c.symbol, name: c.name })));
+        setBrowsePrices(Object.fromEntries(r.companies.map((c) => [c.symbol, c.price])));
+      } catch {
+        // Fall back to the static catalogue list already in `results`.
+      } finally {
+        setBrowsing(false);
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  // Debounced refetch whenever the user adjusts the range slider (browse mode).
+  useEffect(() => {
+    if (isSearch || !range) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setBrowsing(true);
+      try {
+        const r = await api.browseAssets(range[0], range[1], { signal: controller.signal });
+        setBrowseLive(r.live);
+        setResults(r.companies.map((c) => ({ symbol: c.symbol, name: c.name })));
+        setBrowsePrices(Object.fromEntries(r.companies.map((c) => [c.symbol, c.price])));
+      } catch {
+        // Keep the previous browse results on error.
+      } finally {
+        setBrowsing(false);
+      }
+    }, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [range, isSearch]);
+
+  const priceInList = (symbol: string) => browsePrices[symbol] ?? quotes.priceOf(symbol);
+
   const selPrice = useAssetQuote(sel?.symbol ?? null);
-  // Prefer the dedicated single-symbol quote; fall back to the catalogue price for demo tickers.
-  const price = sel ? (selPrice.price ?? quotes.priceOf(sel.symbol)) : 0;
+  // Prefer the dedicated single-symbol quote; fall back to the browse/catalogue price.
+  const price = sel ? (selPrice.price ?? priceInList(sel.symbol)) : 0;
   const live = sel
-    ? selPrice.live || (quotes.live && STOCKS.some((s) => s.symbol === sel.symbol))
+    ? selPrice.live || browseLive || (quotes.live && STOCKS.some((s) => s.symbol === sel.symbol))
     : false;
   const owned = sel ? (state.holdings[sel.symbol]?.qty ?? 0) : 0;
   const room = Math.max(0, tier.investAllowance - investedCost(state));
@@ -146,10 +200,64 @@ export function Investment() {
               className="w-full rounded-md border border-input bg-deep py-2 pl-10 pr-3 outline-none focus:border-ring"
             />
           </div>
-          {searching && results.length === 0 ? (
-            <p className="p-5 text-sm text-muted-foreground">Searching…</p>
+          {!isSearch && bounds && range && (
+            <div className="border-b p-4">
+              <div className="flex items-center justify-between">
+                <Label>Price range</Label>
+                <span className="measured text-xs text-cool">
+                  {ron(range[0])} – {ron(range[1])}
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Min</span>
+                    <span className="measured text-xs text-cool">{ron(range[0])}</span>
+                  </div>
+                  <Slider
+                    className="mt-2"
+                    aria-label="Minimum price"
+                    min={bounds.min}
+                    max={bounds.max}
+                    step={Math.max(1, Math.round((bounds.max - bounds.min) / 200))}
+                    value={[range[0]]}
+                    onValueChange={(v) =>
+                      setRange([Math.min(v[0] ?? range[0], range[1]), range[1]] as [number, number])
+                    }
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Max</span>
+                    <span className="measured text-xs text-cool">{ron(range[1])}</span>
+                  </div>
+                  <Slider
+                    className="mt-2"
+                    aria-label="Maximum price"
+                    min={bounds.min}
+                    max={bounds.max}
+                    step={Math.max(1, Math.round((bounds.max - bounds.min) / 200))}
+                    value={[range[1]]}
+                    onValueChange={(v) =>
+                      setRange([range[0], Math.max(v[0] ?? range[1], range[0])] as [number, number])
+                    }
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Showing up to 16 companies spread across this range
+                {browseLive ? " (Alpaca prices)" : ""}.
+              </p>
+            </div>
+          )}
+          {(searching || browsing) && results.length === 0 ? (
+            <p className="p-5 text-sm text-muted-foreground">
+              {isSearch ? "Searching…" : "Loading companies…"}
+            </p>
           ) : results.length === 0 ? (
-            <p className="p-5 text-sm text-muted-foreground">No matches for “{q}”.</p>
+            <p className="p-5 text-sm text-muted-foreground">
+              {isSearch ? `No matches for “${q}”.` : "No companies in this price range."}
+            </p>
           ) : (
             <ul className="max-h-[28rem] divide-y overflow-y-auto">
               {results.map((s) => (
@@ -164,9 +272,9 @@ export function Investment() {
                   >
                     <span className="measured w-14 shrink-0 text-ink-2">{s.symbol}</span>
                     <span className="flex-1 truncate text-sm">{s.name}</span>
-                    {!q.trim() && (
+                    {!isSearch && (
                       <span className="measured text-sm text-cool">
-                        {ron(quotes.priceOf(s.symbol))}
+                        {ron(priceInList(s.symbol))}
                       </span>
                     )}
                   </button>
