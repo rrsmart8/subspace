@@ -1,3 +1,4 @@
+import './env.mjs';
 import { accountNow, advanceCalendarMonth, stampAccount } from './demo-clock.mjs';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -5,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { openDatabase, readAccount } from './database.mjs';
 import * as logic from '../src/lib/demo-logic.ts';
 import { DEMO_CONFIG } from '../src/config/demo.ts';
+import { getQuotes, priceFor, searchAssets, browseByRange } from './alpaca.mjs';
 
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
 async function body(req) {
@@ -43,6 +45,23 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
         return json(res, 200, db.prepare('SELECT id, tier, cash_bani / 100.0 AS balance FROM accounts ORDER BY tier').all().map(row => { const state = read(row.id); return { ...row, tier: state.tierLevel, name: state.profile.name }; }));
       }
       if (req.method === 'GET' && path === '/api/lessons') return json(res, 200, db.prepare('SELECT content_json FROM lessons').all().map(row => JSON.parse(row.content_json)));
+      if (req.method === 'GET' && path === '/api/market/quotes') {
+        const symbolsParam = new URL(req.url, 'http://localhost').searchParams.get('symbols');
+        const symbols = symbolsParam ? symbolsParam.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : undefined;
+        return json(res, 200, await getQuotes(symbols));
+      }
+      if (req.method === 'GET' && path === '/api/market/search') {
+        const q = new URL(req.url, 'http://localhost').searchParams.get('q') ?? '';
+        return json(res, 200, await searchAssets(q));
+      }
+      if (req.method === 'GET' && path === '/api/market/browse') {
+        const params = new URL(req.url, 'http://localhost').searchParams;
+        const minRaw = params.get('min');
+        const maxRaw = params.get('max');
+        const min = minRaw !== null && Number.isFinite(Number(minRaw)) ? Number(minRaw) : 0;
+        const max = maxRaw !== null && Number.isFinite(Number(maxRaw)) ? Number(maxRaw) : Infinity;
+        return json(res, 200, await browseByRange(min, max));
+      }
       const match = /^\/api\/accounts\/([^/]+)\/(state|actions)$/.exec(path);
       if (!match) return json(res, 404, { error: 'Not found' });
       const id = match[1];
@@ -66,11 +85,14 @@ export function createApi(db = openDatabase(), { demoMode = process.env.DEMO_MOD
         switch (input.action) {
           case 'deposit': result = logic.deposit(state, String(input.amount ?? ''), now); break;
           case 'withdraw': result = logic.withdraw(state, String(input.amount ?? ''), now); break;
-          case 'trade':
+          case 'trade': {
             if (state.tierLevel < 2) { db.exec('ROLLBACK'); return json(res, 403, { error: 'You need a higher tier to invest. Investments unlock at tier 2.' }); }
+            const symbol = typeof input.symbol === 'string' ? input.symbol.trim().toUpperCase() : '';
             if (!['buy', 'sell'].includes(input.side)) result = { ok: false, error: 'Invalid order side' };
-            else result = logic.trade(state, input.symbol, input.side, String(input.qty ?? ''), now);
+            else if (!symbol) result = { ok: false, error: 'A stock symbol is required.' };
+            else result = logic.trade(state, symbol, input.side, String(input.qty ?? ''), await priceFor(symbol), now);
             break;
+          }
           case 'redeem': {
             const reward = DEMO_CONFIG.rewards.find(r => r.id === input.rewardId);
             result = logic.redeem(state, input.rewardId, `${reward?.prefix ?? 'DEMO'}-${randomUUID().slice(0, 8).toUpperCase()}`);

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/account")({
   head: () => ({
     meta: [
       { title: "Account — Stagewise demo" },
-      { name: "description", content: "Simulated balance, transaction history, deposits, withdrawals and rewards." },
+      { name: "description", content: "Balance, transaction history, deposits, withdrawals and rewards." },
       { property: "og:title", content: "Account — Stagewise demo" },
       { property: "og:description", content: "Simulated balance, transaction history, deposits, withdrawals and rewards." },
     ],
@@ -70,7 +70,6 @@ function Account() {
       </Panel>
 
       <h2 className="mb-2 text-3xl">Rewards</h2>
-      <p className="mb-6 text-sm text-muted-foreground">Sample providers. Coupon codes are fictional.</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {DEMO_CONFIG.rewards.map((r) => <RewardCard key={r.id} id={r.id} />)}
       </div>

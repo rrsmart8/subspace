@@ -18,3 +18,12 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => {},
   }),
 });
+
+// jsdom lacks ResizeObserver, which Radix UI primitives (e.g. Slider) rely on.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+Object.defineProperty(window, "ResizeObserver", { writable: true, value: ResizeObserverStub });
+globalThis.ResizeObserver = globalThis.ResizeObserver ?? ResizeObserverStub;

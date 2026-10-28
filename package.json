@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "backend": "node backend/server.mjs",
     "db:seed": "node backend/seed.mjs",
-    "test:backend": "node --test backend/*.test.mjs",
+    "test:backend": "ALPACA_DISABLE=1 node --test backend/*.test.mjs",
     "setup": "node scripts/setup.mjs",
     "dev:all": "node scripts/dev.mjs",
     "typecheck": "tsc --noEmit"
@@ -23,6 +23,7 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
+    "@alpacahq/alpaca-trade-api": "5.0.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
