@@ -84,14 +84,8 @@ npx tsc --noEmit
 npm run build
 ```
 
-## Planned Tier 2 to Tier 3 evaluation
+## Tier 2 performance tracking
 
-The configured product rule is a 90-calendar-day window with a +0.5% net investment-profit target. This supplements the existing Tier 3 balance and lesson requirements (the income-based savings reserve and four lessons); it does not replace them. The percentage is a provisional prototype assessment choice, not an evidence-based expected return.
+A 90-day tracking period is now available on Investment. Start via the account action `performance-start`; fetch or refresh via `GET /api/accounts/:id/performance`. Opening/current portfolio valuations and snapshot history are persisted in SQLite. Deposits and withdrawals are excluded from P&L, and the percentage is a cash-flow-adjusted estimate for cash plus holdings. Orders currently have zero fees.
 
-The target applies to the investment allocation fixed at evaluation start, not the entire wallet. For example, a 350 RON starting allocation has a 1.75 RON net-profit target. An evaluation needs a positive starting allocation and at least one investment trade. Do not require frequent trading or liquidation just to pass.
-
-Before activation, implement server-recorded start/end timestamps and the opening allocation, positions and prices. Measure changes in investment value including realized and unrealized P&L and fees; separate deposits, withdrawals, transfers and reward credits so they cannot create a pass. Existing positions must be valued at the start so older gains are not counted. Use the same RON valuation basis and time-consistent prices. Evaluate after the full window, using valid closing valuations; defer if prices are unavailable or stale. Recheck the existing balance and lesson requirements when evaluating promotion. A retry starts a new evaluation record without erasing money, positions, losses or history.
-
-Automatic promotion remains **disabled**. The teammate's market-price integration and an evaluation engine are still pending; changing the configuration alone does not implement the assessment. No UI changes accompany this rule.
-
-Research context: [Investor.gov](https://www.investor.gov/introduction-investing) discusses 7–10% annual historical estimates for long-term diversified US equity investing, rather than reliable weekly returns. [FCA research](https://www.fca.org.uk/publications/fca-research/research-note-digital-engagement-practices-trading-apps-experiment) found that certain engagement features can increase trading frequency and risk-taking. Neither source validates the chosen 0.5% assessment gate.
+See the root README for quote freshness, FX policy, demo-time handling, snapshot cadence and historical-closing limitations. No profit gate is active. Tier 3 readiness is server-enforced using 90 compliant days, three completed saving months, the cash reserve and four lessons; see the root README for the frozen plan and reset rules. `performance_snapshots` preserves prior run history even if a demo account is reset. Network requests never run inside the SQLite write transaction.

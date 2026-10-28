@@ -1,3 +1,4 @@
+import { PerformanceTracker } from "@/components/demo/PerformanceTracker";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Lock, Search } from "lucide-react";
@@ -24,15 +25,15 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/investment")({
   head: () => ({
     meta: [
-      { title: "Investment — Stagewise demo" },
+      { title: "Stagewise — Save. Learn. Invest." },
       {
         name: "description",
-        content: "Search mock stocks and place simulated buy and sell orders.",
+        content: "Search stocks and manage your investments.",
       },
-      { property: "og:title", content: "Investment — Stagewise demo" },
+      { property: "og:title", content: "Stagewise — Save. Learn. Invest." },
       {
         property: "og:description",
-        content: "Search mock stocks and place simulated buy and sell orders.",
+        content: "Search stocks and manage your investments.",
       },
     ],
   }),
@@ -157,14 +158,8 @@ export function Investment() {
 
   return (
     <>
-      <PageHead
-        title="Investment"
-        lede={
-          quotes.live
-            ? `Live prices via Alpaca (${quotes.feed} feed), shown in RON. Orders are simulated against your demo balance.`
-            : "Prices and trades are simulated. No live market connection."
-        }
-      />
+      <PageHead title="Investment" />
+      <PerformanceTracker />
       <div className="panels mb-6 sm:grid-cols-3">
         <div className="p-4">
           <Label>Cash</Label>
@@ -364,7 +359,7 @@ function OrderPanel({
     const r = await run((s) => api.trade(s, symbol, side, qty));
     setBusy(false);
     if (!r.ok) return setError(r.error);
-    toast.success(`${r.message} (simulated)`);
+    toast.success(r.message);
     setQty("1");
     setError(null);
     onClose();

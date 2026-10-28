@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promoteSavingsTier } from '../src/lib/demo-logic.ts';
+import { promoteTiers } from '../src/lib/demo-logic.ts';
 import { LESSONS } from '../src/data/mock.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ export function readAccount(db, id, { demoMode = false } = {}) {
     state.mastery = { enrolledAt: accountNow(state, demoMode).toISOString(), answers: {}, rewardClaims: {} };
     db.prepare('UPDATE accounts SET state_json = ? WHERE id = ?').run(JSON.stringify(state), id);
   }
-  const next = promoteSavingsTier(state, accountNow(state, demoMode));
-  if (next.tierLevel !== state.tierLevel) db.prepare('UPDATE accounts SET tier = ?, state_json = ? WHERE id = ?').run(next.tierLevel, JSON.stringify(next), id);
+  const next = promoteTiers(state, accountNow(state, demoMode));
+  if (JSON.stringify(next) !== JSON.stringify(state)) db.prepare('UPDATE accounts SET tier = ?, state_json = ? WHERE id = ?').run(next.tierLevel, JSON.stringify(next), id);
   return stampAccount(next, demoMode);
 }

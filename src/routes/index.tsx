@@ -3,14 +3,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useDemo } from "@/state/DemoStore";
 import { holdingsValue } from "@/lib/demo-logic";
 import { Label, PageHead, ron } from "@/components/demo/ui";
-import { MilestoneList, NextTier, TierCard } from "@/components/demo/Milestones";
+import { MilestoneList, TierCard } from "@/components/demo/Milestones";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Overview — Stagewise demo" },
+      { title: "Stagewise — Save. Learn. Invest." },
       { name: "description", content: "Your simulated balance, tier and milestones at a glance." },
-      { property: "og:title", content: "Overview — Stagewise demo" },
+      { property: "og:title", content: "Stagewise — Save. Learn. Invest." },
       { property: "og:description", content: "Your simulated balance, tier and milestones at a glance." },
     ],
   }),
@@ -42,9 +42,9 @@ function Overview() {
           <div><span className="text-muted-foreground">Member since </span><span className="measured">{state.profile.memberSince}</span></div>
         </div>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6"><TierCard /><NextTier showDeadlineNote={false} /></div>
-        <MilestoneList />
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <TierCard />
+        <MilestoneList showNextTier />
       </div>
     </>
   );

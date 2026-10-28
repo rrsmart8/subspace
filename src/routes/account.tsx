@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/account")({
   head: () => ({
     meta: [
-      { title: "Account — Stagewise demo" },
+      { title: "Stagewise — Save. Learn. Invest." },
       { name: "description", content: "Balance, transaction history, deposits, withdrawals and rewards." },
-      { property: "og:title", content: "Account — Stagewise demo" },
+      { property: "og:title", content: "Stagewise — Save. Learn. Invest." },
       { property: "og:description", content: "Simulated balance, transaction history, deposits, withdrawals and rewards." },
     ],
   }),

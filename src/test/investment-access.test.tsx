@@ -19,6 +19,7 @@ vi.mock("@/services/mockApi", () => ({
     live: false,
   }),
   trade: vi.fn(),
+  getPerformance: vi.fn().mockResolvedValue({ run: null, status: "not-started", elapsedDays: 0, snapshots: [], dataIssue: null, promotion: "pending" }),
 }));
 afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());

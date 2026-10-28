@@ -145,7 +145,7 @@ describe("stage-specific milestones", () => {
     expect(items).toHaveLength(5);
     expect(items.find(m => m.id === "m-lessons")?.target).toBe(4);
     expect(items.find(m => m.id === "m-evaluation-window")).toMatchObject({ current: null, target: 90, passed: false });
-    expect(items.find(m => m.id === "m-profit")).toMatchObject({ current: null, target: 0.5, passed: false });
+    expect(items.find(m => m.id === "m-investment-plan")).toMatchObject({ current: null, target: 1, passed: false });
     expect(L.nextTierRequirements(state)?.items.map(m => [m.id, m.target, m.met])).toEqual(items.map(m => [m.id, m.target, m.passed]));
   });
   it("shows ongoing Tier 3 goals without implying another promotion", () => {

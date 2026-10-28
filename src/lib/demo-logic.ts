@@ -136,14 +136,16 @@ export function milestones(s: DemoState, now: Date = new Date()): Milestone[] {
     reserve,
     lessons(DEMO_CONFIG.tiers[1].minLessons),
   ];
-  if (tier.level === 2) return [
-    reserve,
-    lessons(DEMO_CONFIG.tiers[2].minLessons),
-    m("m-trade", "Place a first trade", s.transactions.filter(t => t.status === "completed" && /^(Buy|Sell) /.test(t.description)).length, 1, "trades"),
-    // Do not invent elapsed time or return data before a backend assessment exists.
-    m("m-evaluation-window", `Complete the ${evaluation.windowDays}-day investment assessment`, null, evaluation.windowDays, "days"),
-    m("m-profit", `Reach +${evaluation.profitTargetPercent}% net investment profit`, null, evaluation.profitTargetPercent, "%"),
-  ];
+  if (tier.level === 2) {
+    const progress = investmentReadiness(s, now);
+    return [
+      m("m-evaluation-window", `Follow your investment plan for ${evaluation.windowDays} days`, s.performance ? progress.days : null, evaluation.windowDays, "days"),
+      m("m-assessment-saving", "Meet the saving target in 3 completed months", progress.savingMonths, evaluation.requiredSavingMonths, "months"),
+      m("m-reserve", "Keep your savings reserve", s.cash, progress.requiredReserve, "RON"),
+      lessons(DEMO_CONFIG.tiers[2].minLessons),
+      m("m-investment-plan", `Hold at least ${progress.minPositions} stocks; max ${progress.maxPositionPercent}% per stock`, s.performance ? (progress.planMet ? 1 : 0) : null, 1, "checks"),
+    ];
+  }
   // Tier 3 is the highest implemented tier: these are ongoing goals, not Tier 4 gates.
   return [
     m("m-monthly-saving", `Save ${policy.incomePercent}% of income this month`, savings.currentSaved, savings.monthlyTarget, "RON"),
@@ -254,4 +256,64 @@ export function registerMasteryReward(s: DemoState, quarterId: string, now: Date
   // Record eligibility only. No funds exist and nothing is added to cash or return calculations.
   const claim = { amountRON: progress.bonusRON, incomeRON: s.profile.monthlyIncome ?? 0, bonusIncomePercent: progress.bonusIncomePercent, status: "pending-funding" as const, claimedAt: now.toISOString() };
   return { ok: true, message: "Reward registered. Sponsor funding is pending; no cash has been credited.", state: { ...s, mastery: { ...s.mastery, rewardClaims: { ...s.mastery.rewardClaims, [quarterId]: claim } } } };
+}
+
+// Readiness uses cost basis: market movements alone never reset discipline.
+export function investmentReadiness(s: DemoState, now: Date = new Date()) {
+  const policy = DEMO_CONFIG.investmentEvaluation;
+  const run = s.performance;
+  const a = run?.assessment;
+  const saving = savingsProgress(s, now);
+  const monthlyTarget = a?.monthlyTarget ?? saving.monthlyTarget;
+  const requiredReserve = a?.requiredReserve ?? saving.requiredBalance;
+  const minPositions = a?.minPositions ?? policy.minPositions;
+  const maxPositionPercent = a?.maxPositionPercent ?? policy.maxPositionPercent;
+  const investPercent = a?.investPercent ?? DEMO_CONFIG.tiers[1].investPercent;
+  const positions = Object.values(s.holdings).filter(h => h.qty > 0);
+  const used = investedCost(s);
+  const capital = round(s.cash + used);
+  const allowance = Math.floor(Math.round(capital * 100) * investPercent / 100) / 100;
+  const planMet = positions.length >= minPositions && used > 0 && used <= allowance
+    && positions.every(h => h.cost <= used * maxPositionPercent / 100 + 0.001);
+  const since = a?.compliantSince ? new Date(a.compliantSince).getTime() : NaN;
+  const days = a && planMet && Number.isFinite(since) ? Math.max(0, Math.min(policy.windowDays, Math.floor((now.getTime() - since) / 86400000))) : 0;
+  // Assess full Bucharest calendar months after enrollment; never reuse Tier 1 history.
+  const firstMonth = a ? calendarMonth(new Date(a.enrolledAt)) + 1 : Infinity;
+  const currentMonth = calendarMonth(now);
+  const assessmentSavings = savingsProgress({ ...s, savingsStartedAt: a?.enrolledAt ?? now.toISOString(), profile: { ...s.profile, monthlyIncome: monthlyTarget * 100 / DEMO_CONFIG.savingsQualification.incomePercent } }, now);
+  let savingMonths = 0;
+  for (let month = currentMonth - 1; month >= firstMonth && savingMonths < policy.requiredSavingMonths; month--) {
+    if (!assessmentSavings.qualifyingMonths.includes(month)) break;
+    savingMonths++;
+  }
+  const lessons = new Set(s.completedLessons.filter(id => LESSONS.some(l => l.id === id))).size;
+  const eligible = !!a && monthlyTarget > 0 && days >= policy.windowDays
+    && savingMonths >= policy.requiredSavingMonths && s.cash >= requiredReserve
+    && lessons >= DEMO_CONFIG.tiers[2].minLessons && planMet;
+  return { days, savingMonths, requiredReserve, monthlyTarget, minPositions, maxPositionPercent, investPercent, planMet, eligible };
+}
+
+export function promoteInvestmentTier(s: DemoState, now: Date = new Date()): DemoState {
+  if (!DEMO_CONFIG.investmentEvaluation.enabled || s.tierLevel !== 2 || !s.performance) return s;
+  const run = s.performance;
+  const current = run.assessment;
+  const progress = investmentReadiness(s, now);
+  const assessment = current ?? {
+    enrolledAt: now.toISOString(), monthlyTarget: progress.monthlyTarget, requiredReserve: progress.requiredReserve,
+    minPositions: progress.minPositions, maxPositionPercent: progress.maxPositionPercent, investPercent: progress.investPercent,
+    compliantSince: null, lastBreachAt: null,
+  };
+  const nextAssessment = { ...assessment };
+  if (!progress.planMet) {
+    if (assessment.compliantSince) nextAssessment.lastBreachAt = now.toISOString();
+    nextAssessment.compliantSince = null;
+  } else if (!assessment.compliantSince) nextAssessment.compliantSince = now.toISOString();
+  const next = { ...s, performance: { ...run, assessment: nextAssessment } };
+  if (!investmentReadiness(next, now).eligible) return next;
+  return { ...next, tierLevel: 3, performance: { ...next.performance, assessment: { ...nextAssessment, promotedAt: now.toISOString() } },
+    mastery: s.mastery ?? { enrolledAt: now.toISOString(), answers: {}, rewardClaims: {} } };
+}
+
+export function promoteTiers(s: DemoState, now: Date = new Date()): DemoState {
+  return promoteInvestmentTier(promoteSavingsTier(s, now), now);
 }
