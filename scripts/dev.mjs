@@ -11,7 +11,7 @@ function stop(code = 0) {
   for (const child of children) if (child.exitCode === null) child.kill('SIGTERM');
 }
 for (const args of [['backend/server.mjs'], ['node_modules/vite/bin/vite.js', 'dev', '--host', '127.0.0.1', '--port', process.env.FRONTEND_PORT || '5173', '--strictPort']]) {
-  const child = spawn(process.execPath, args, { cwd: root, stdio: 'inherit', shell: false });
+  const child = spawn(process.execPath, args, { cwd: root, stdio: 'inherit', shell: false, env: { ...process.env, DEMO_MODE: process.env.DEMO_MODE ?? 'true' } });
   children.push(child);
   child.on('error', error => { console.error(error.message); stop(1); });
   child.on('exit', code => { if (!stopping) stop(code ?? 1); });

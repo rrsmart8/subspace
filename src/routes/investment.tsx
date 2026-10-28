@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useDemo } from "@/state/DemoStore";
 import * as api from "@/services/mockApi";
 import { STOCKS } from "@/data/mock";
-import { getTier, investedCost } from "@/lib/demo-logic";
+import { getTier, investmentBudget } from "@/lib/demo-logic";
 import { Btn, Chip, Field, Label, Notice, PageHead, Panel, SidePanel, ron } from "@/components/demo/ui";
 import { cn } from "@/lib/utils";
 
@@ -27,14 +27,15 @@ export function Investment() {
   const [sel, setSel] = useState<string | null>(null);
   const [side, setSide] = useState<"buy" | "sell" | null>(null);
   const tier = getTier(state);
-  const canTrade = tier.investAllowance > 0;
+  const canTrade = tier.level >= 2;
   const results = useMemo(() => {
     const t = q.trim().toLowerCase();
     return t ? STOCKS.filter((s) => s.symbol.toLowerCase().includes(t) || s.name.toLowerCase().includes(t)) : STOCKS;
   }, [q]);
   const stock = STOCKS.find((s) => s.symbol === sel);
   const owned = sel ? state.holdings[sel]?.qty ?? 0 : 0;
-  const room = Math.max(0, tier.investAllowance - investedCost(state));
+  const budget = investmentBudget(state);
+  const room = budget.remaining;
 
   if (!canTrade) return <><PageHead title="Investment" /><Notice tone="amber"><Lock className="mr-1 inline h-4 w-4" />You need a higher tier to invest. Investments unlock at tier 2.</Notice></>;
 

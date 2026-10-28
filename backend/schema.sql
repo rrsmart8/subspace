@@ -17,3 +17,10 @@ CREATE TABLE IF NOT EXISTS requests (
   response TEXT NOT NULL,
   PRIMARY KEY(account_id, request_id)
 );
+
+CREATE TABLE IF NOT EXISTS account_creations (
+  request_id TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  response TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_email ON accounts(lower(json_extract(state_json, '$.profile.email')));

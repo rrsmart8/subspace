@@ -26,3 +26,13 @@ export const withdraw = (s: DemoState, amount: string) => action(s, { action: "w
 export const trade = (s: DemoState, symbol: string, side: "buy" | "sell", qty: string) => action(s, { action: "trade", symbol, side, qty });
 export const redeemReward = (s: DemoState, rewardId: string) => action(s, { action: "redeem", rewardId });
 export const completeLesson = (s: DemoState, lessonId: string, answer: number) => action(s, { action: "lesson", lessonId, answer });
+
+export const createAccount = (details: { name: string; email: string; monthlyIncome: string }) => request<DemoState>("/accounts", {
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ ...details, requestId: crypto.randomUUID() }),
+});
+
+export const answerMastery = (s: DemoState, quarterId: string, scenarioId: string, answer: number) => action(s, { action: "mastery-answer", quarterId, scenarioId, answer });
+export const registerMasteryReward = (s: DemoState, quarterId: string) => action(s, { action: "mastery-reward", quarterId });
+
+export const advanceMonth = (s: DemoState) => action(s, { action: "advance-month" });

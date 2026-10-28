@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Menu, RotateCcw, X } from "lucide-react";
 import { useDemo } from "@/state/DemoStore";
-import { Btn, Chip } from "./ui";
+import { Btn } from "./ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -28,7 +29,7 @@ function ResetButton() {
       <AlertDialogContent className="bg-card">
         <AlertDialogHeader>
           <AlertDialogTitle>Reset the demo?</AlertDialogTitle>
-          <AlertDialogDescription>Balance, transactions, holdings, rewards and lessons return to the starting mock data.</AlertDialogDescription>
+          <AlertDialogDescription>Timeline, balance, transactions, holdings, rewards and lessons return to the starting mock data.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -41,7 +42,7 @@ function ResetButton() {
 
 export function Nav() {
   const [open, setOpen] = useState(false);
-  const { state, accounts, switchAccount } = useDemo();
+  const { state, accounts, switchAccount, startSetup } = useDemo();
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
@@ -49,13 +50,19 @@ export function Nav() {
           <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground text-sm">S</span>
           Stagewise
         </Link>
-        <Chip tone="amber">Simulated demo</Chip>
-        <label className="min-w-0 text-xs">
-          <span className="sr-only">Demo account</span>
-          <select aria-label="Demo account" value={state.accountId} onChange={(e) => void switchAccount(e.target.value)} className="max-w-40 rounded-md border bg-card p-2 text-foreground">
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name} · Tier {a.tier}</option>)}
-          </select>
-        </label>
+        <Select value={state.accountId ?? ""} onValueChange={(id) => id === "__create__" ? startSetup() : void switchAccount(id)}>
+          <SelectTrigger aria-label="Demo account" className="w-auto min-w-0 max-w-44 gap-3 rounded-md border-rule-2 bg-deep font-medium text-ink-2 shadow-none hover:border-amber/60 focus:ring-amber sm:max-w-56">
+            <SelectValue placeholder="Choose account" />
+          </SelectTrigger>
+          <SelectContent className="border-rule-2 bg-card text-ink-2 shadow-none data-[state=open]:animate-none data-[state=closed]:animate-none">
+            {accounts.map(a => (
+              <SelectItem key={a.id} value={a.id} className="font-medium focus:bg-amber-soft focus:text-amber data-[state=checked]:bg-amber-soft data-[state=checked]:text-amber">
+                {a.name} · Tier {a.tier}
+              </SelectItem>
+            ))}
+            <SelectItem value="__create__" className="border-t font-medium text-amber focus:bg-amber-soft focus:text-amber">Create account</SelectItem>
+          </SelectContent>
+        </Select>
         <nav aria-label="Main" className="ml-auto hidden items-center gap-1 md:flex">
           {LINKS.map((l) => (
             <Link key={l.to} to={l.to} className={linkCls} activeProps={{ className: activeCls, "aria-current": "page" }} activeOptions={{ exact: true }}>{l.label}</Link>

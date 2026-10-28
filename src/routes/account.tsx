@@ -26,14 +26,14 @@ function Account() {
   const [mode, setMode] = useState<"deposit" | "withdraw" | null>(null);
   return (
     <>
-      <PageHead title="Account" lede="All money on this page is simulated. No real payment details are needed." />
+      <PageHead title="Account" />
 
       <Panel className="mb-6 p-6">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <Label>Account number</Label>
             <div className="measured mt-1 text-ink-2">{state.profile.accountNumber}</div>
-            <div className="mt-4 flex items-center gap-2"><Label>Available cash</Label><Chip>Simulated</Chip></div>
+            <div className="mt-4 flex items-center gap-2"><Label>Available cash</Label></div>
             <div className="reading mt-2 text-5xl text-cool">{ron(state.cash)}</div>
           </div>
           <div className="flex gap-3">

@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "backend": "node backend/server.mjs",
     "db:seed": "node backend/seed.mjs",
-    "test:backend": "node --test backend/backend.test.mjs",
+    "test:backend": "node --test backend/*.test.mjs",
     "setup": "node scripts/setup.mjs",
     "dev:all": "node scripts/dev.mjs",
     "typecheck": "tsc --noEmit"

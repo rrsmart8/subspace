@@ -6,6 +6,7 @@ export interface Transaction {
   amount: number;
   direction: Direction;
   status: "completed" | "pending";
+  kind?: "deposit" | "withdrawal" | "trade";
 }
 export interface Stock { symbol: string; name: string; price: number }
 export interface Lesson {
@@ -18,8 +19,17 @@ export interface Lesson {
 }
 export interface DemoState {
   accountId?: string;
+  serverNow?: string;
+  demoTimelineEnabled?: boolean;
+  demoClockOffsetMs?: number;
   tierLevel?: number;
-  profile: { name: string; email: string; accountNumber: string; memberSince: string };
+  savingsStartedAt?: string;
+  mastery?: {
+    enrolledAt: string;
+    answers: Record<string, string[]>;
+    rewardClaims: Record<string, { amountRON: number; status: "pending-funding"; claimedAt: string; incomeRON?: number; bonusIncomePercent?: number }>;
+  };
+  profile: { name: string; email: string; accountNumber: string; memberSince: string; monthlyIncome?: number };
   cash: number;
   holdings: Record<string, { qty: number; cost: number }>;
   transactions: Transaction[];

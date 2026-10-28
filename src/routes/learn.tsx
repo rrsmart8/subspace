@@ -1,3 +1,4 @@
+import { QuarterlyMastery } from "@/components/demo/QuarterlyMastery";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { CheckCircle2, Lock } from "lucide-react";
@@ -40,7 +41,8 @@ function Learn() {
         </div>
         <MilestoneList />
       </div>
-      <h2 className="mb-4 text-3xl">Lessons</h2>
+      <QuarterlyMastery />
+      <h2 id="lessons" className="mb-4 scroll-mt-24 text-3xl">Lessons</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {lessons.map((l) => {
           const st = lessonStatus(state, l.id);
